@@ -37,8 +37,12 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 xcap = "0.9"
 
 [target.'cfg(windows)'.dependencies]
-# Состояние Ctrl вне фокуса окна (GetAsyncKeyState).
-windows-sys = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+# Global modifier state and native overlay window styles.
+windows-sys = { version = "0.61", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [profile.release]
 opt-level = "s"

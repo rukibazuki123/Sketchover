@@ -11,6 +11,9 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindo
 
 use crate::keys;
 
+#[cfg(windows)]
+mod windows;
+
 pub const LABEL: &str = "overlay";
 /// Как часто, пока холст виден, проверяем Alt и курсор: ~30 раз в секунду незаметно глазу и почти не грузит CPU.
 const POLL: Duration = Duration::from_millis(33);
@@ -222,7 +225,7 @@ fn cursor_in(win: &WebviewWindow, rect: Rect) -> Option<bool> {
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::default())
+    let win = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::default())
         .title("Sketchover")
         .transparent(true)
         .decorations(false)
@@ -232,18 +235,27 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible_on_all_workspaces(true)
         .skip_taskbar(true)
         .visible(false)
-        .build()?
-        // Alt+F4 / Cmd+W не выходят из программы, а прячут холст в трей: она должна жить фоном.
-        // Выход — явно, из трея или настроек.
-        .on_window_event({
-            let app = app.clone();
-            move |event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    hide(&app);
-                }
+        .build()?;
+
+    #[cfg(windows)]
+    if let Err(err) = win
+        .hwnd()
+        .and_then(|hwnd| windows::mark_tool_window(hwnd.0).map_err(Into::into))
+    {
+        eprintln!("Failed to configure Sketchover's Windows tool window: {err}");
+    }
+
+    // Alt+F4 / Cmd+W не выходят из программы, а прячут холст в трей: она должна жить фоном.
+    // Выход — явно, из трея или настроек.
+    win.on_window_event({
+        let app = app.clone();
+        move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                hide(&app);
             }
-        });
+        }
+    });
 
     let poll_app = app.clone();
     let handle = thread::spawn(move || loop {
